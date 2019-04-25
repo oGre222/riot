@@ -23,6 +23,7 @@ import (
 	"fmt"
 	ti "github.com/oGre222/tea/tikv"
 	"log"
+	"math/rand"
 	"os"
 	"runtime"
 	"sort"
@@ -340,11 +341,11 @@ func (engine *Engine) Init(options types.EngineOpts) {
 	// 初始化索引器和排序器
 	for shard := 0; shard < options.NumShards; shard++ {
 		engine.indexers = append(engine.indexers, core.Indexer{})
-		engine.indexers[shard].SetTikv(engine.tikvClient, options.TiKvPrefix)
+		engine.indexers[shard].SetTikv(engine.tikvClient, engine.initOptions.TiKvPrefix)
 		engine.indexers[shard].Init(*options.IndexerOpts)
 
 		engine.rankers = append(engine.rankers, core.Ranker{})
-		engine.rankers[shard].SetTikv(engine.tikvClient, options.TiKvPrefix)
+		engine.rankers[shard].SetTikv(engine.tikvClient, engine.initOptions.TiKvPrefix)
 		engine.rankers[shard].Init(options.IDOnly)
 	}
 
@@ -603,7 +604,12 @@ func (engine *Engine) NotTimeOut(request types.SearchReq,
 		idOnly     = engine.initOptions.IDOnly
 	)
 
-	for shard := 0; shard < engine.initOptions.NumShards; shard++ {
+	var max = 1
+	if !engine.initOptions.UseTiKv {
+		max = engine.initOptions.NumShards
+	}
+
+	for shard := 0; shard < max; shard++ {
 		rankerOutput := <-rankerReturnChan
 		if !request.CountDocsOnly {
 			if rankerOutput.docs != nil {
@@ -832,10 +838,16 @@ func (engine *Engine) Search(request types.SearchReq) (output types.SearchResp) 
 		logic:            request.Logic,
 	}
 
-	// 向索引器发送查找请求
-	for shard := 0; shard < engine.initOptions.NumShards; shard++ {
-		engine.indexerLookupChans[shard] <- lookupRequest
+	if engine.initOptions.UseTiKv {
+		//tikv 只需查找一个channel
+		engine.indexerLookupChans[rand.Intn(engine.initOptions.NumShards)] <- lookupRequest
+	} else {
+		// 向索引器发送查找请求
+		for shard := 0; shard < engine.initOptions.NumShards; shard++ {
+			engine.indexerLookupChans[shard] <- lookupRequest
+		}
 	}
+
 
 	if engine.initOptions.IDOnly {
 		output = engine.RankID(request, rankOpts, tokens, rankerReturnChan)

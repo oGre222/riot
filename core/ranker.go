@@ -79,7 +79,7 @@ func (ranker *Ranker) SetTikv (t *tikv.Tikv, prefix string) {
 	ranker.useTiKv = true
 	ranker.tikv = t
 	ranker.tikvCh = make(chan tikv.KvData)
-	ranker.tikvPrefix = ranker.tikvPrefix + prefix
+	ranker.tikvPrefix = RankerDocId + prefix
 	for i := 0; i < 8; i++  {
 		go func() {
 			for d := range ranker.tikvCh {

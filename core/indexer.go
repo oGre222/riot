@@ -488,7 +488,7 @@ func (indexer *Indexer) Lookup(
 	indexer.tableLock.RLock()
 	defer indexer.tableLock.RUnlock()
 
-	if indexer.numDocs == 0 {
+	if indexer.numDocs == 0 && !indexer.useTikv {
 		return
 	}
 
@@ -589,9 +589,11 @@ func (indexer *Indexer) internalLookup(
 		}
 
 		if found {
-			docState, ok := indexer.tableLock.docsState[baseDocId]
-			if !ok || docState != 0 {
-				continue
+			if !indexer.useTikv {
+				docState, ok := indexer.tableLock.docsState[baseDocId]
+				if !ok || docState != 0 {
+					continue
+				}
 			}
 			indexedDoc := types.IndexedDoc{}
 
@@ -631,8 +633,8 @@ func (indexer *Indexer) internalLookup(
 			}
 
 			// 当为 LocsIndex 或者 FrequenciesIndex 时计算BM25
-			if indexer.initOptions.IndexType == types.LocsIndex ||
-				indexer.initOptions.IndexType == types.FrequenciesIndex {
+			if !indexer.useTikv && (indexer.initOptions.IndexType == types.LocsIndex ||
+				indexer.initOptions.IndexType == types.FrequenciesIndex) {
 				bm25 := float32(0)
 				d := indexer.docTokenLens[baseDocId]
 				for i, t := range table[:len(tokens)] {
@@ -1066,6 +1068,6 @@ func (indexer *Indexer) getDocKeys(docId string) []string {
 	if err != nil {
 		return keys
 	}
-	utils.DecodeFromBytes(val, keys)
+	utils.DecodeFromBytes(val, &keys)
 	return keys
 }
