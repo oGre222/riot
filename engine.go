@@ -183,7 +183,6 @@ func (engine *Engine) InitTiKv() {
 	if engine.initOptions.TiKvPrefix == "" {
 		log.Fatal("use tikv must set tikvPrefix")
 	}
-	engine.initOptions.TiKvPrefix += ":"
 }
 
 // CheckMem check the memory when the memory is larger
