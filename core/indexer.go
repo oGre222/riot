@@ -214,6 +214,7 @@ func (indexer *Indexer) AddTiKvDocs(docs *types.DocsIndex) {
 	}
 
 	var store = make(map[string][]byte)
+	var reTokens []string
 	// DocId 递增顺序遍历插入文档保证索引移动次数最少
 	for i, doc := range *docs {
 		if i < len(*docs)-1 && (*docs)[i].DocId == (*docs)[i+1].DocId {
@@ -251,12 +252,14 @@ func (indexer *Indexer) AddTiKvDocs(docs *types.DocsIndex) {
 		var keys []string
 		for _, k := range doc.Keywords  {
 			keys = append(keys, k.Text)
+			reTokens = append(reTokens, indexer.tikvDocIndexPre + k.Text + ":")
 		}
 		store[indexer.tikvDocKeysPre + doc.DocId] = utils.EncodeToBytes(keys)
+		reTokens = append(reTokens, indexer.tikvDocKeysPre + doc.DocId)
 		//indexer.setDocKeys(doc)
 		//indexer.setKeywordIndexKv(store)
 	}
-	indexer.tikv.BatchPut(store)
+	indexer.tikv.BatchPut(store, reTokens...)
 }
 
 // AddDocs 向反向索引表中加入 ADDCACHE 中所有文档
@@ -1046,20 +1049,6 @@ func (indexer *Indexer) getKeywordIndices(text string) (*KeywordIndices, bool) {
 		k.locations = append(k.locations, kkv.locations)
 	}
 	return &k, true
-}
-
-//停用
-func (indexer *Indexer) setKeywordIndexKv(data map[string][]byte) {
-	indexer.tikv.BatchPut(data)
-}
-
-//停用
-func (indexer *Indexer) setDocKeys(doc *types.DocIndex) {
-	var keys []string
-	for _, k := range doc.Keywords  {
-		keys = append(keys, k.Text)
-	}
-	indexer.tikv.Set([]byte(indexer.tikvDocKeysPre + doc.DocId), utils.EncodeToBytes(keys))
 }
 
 func (indexer *Indexer) getDocKeys(docId string) []string {

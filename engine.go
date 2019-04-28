@@ -176,7 +176,7 @@ func (engine *Engine) InitTiKv() {
 		log.Println("tikv only support IDOnly, has changed to IDOnly true")
 	}
 	var err error
-	engine.tikvClient, err = ti.OpenTikv(engine.initOptions.TiKvPdAddr)
+	engine.tikvClient, err = ti.OpenTikv(engine.initOptions.TiKvPdAddr, engine.initOptions.TiKvLruSize)
 	if err != nil {
 		log.Fatal(err)
 	}

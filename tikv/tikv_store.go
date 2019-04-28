@@ -12,17 +12,26 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// Tikv is key-value store use tikv+pd, before this use lru cache data.
+// for search engine is huge keyword => []list table, but store to tikv is kv struct
+// with id prefix。
+
 package tikv
 
 import (
+	"errors"
+	"github.com/hashicorp/golang-lru"
 	"github.com/pingcap/tidb/config"
 	ti "github.com/pingcap/tidb/store/tikv"
 	"strings"
 )
 
+const DefaultLruSize = 100000
+
 // Bolt bolt store struct
 type Tikv struct {
-	cli *ti.RawKVClient
+	cli      *ti.RawKVClient
+	lruCache *lru.TwoQueueCache
 }
 
 type KvData struct {
@@ -30,14 +39,28 @@ type KvData struct {
 	Val []byte
 }
 
+type KvScanData struct {
+	Keys [][]byte
+	Values [][]byte
+}
+
 // OpenBolt open Bolt store
-func OpenTikv(addr string) (*Tikv, error) {
+func OpenTikv(addr string, lruSize ...int) (*Tikv, error) {
 	cli, err := ti.NewRawKVClient(strings.Split(addr, ","), config.Security{})
 	if err != nil {
 		cli.Close()
 		return nil, err
 	}
-	return &Tikv{cli: cli}, nil
+	size := DefaultLruSize
+	if len(lruSize) > 0 && lruSize[0] > 0 {
+		size = lruSize[0]
+	}
+	l, err := lru.New2Q(size)
+	if err != nil {
+		cli.Close()
+		return nil, err
+	}
+	return &Tikv{cli: cli, lruCache: l}, nil
 }
 
 // Set executes a function within the context of a read-write managed
@@ -46,18 +69,30 @@ func OpenTikv(addr string) (*Tikv, error) {
 // Any error that is returned from the function or returned from the commit is returned
 // from the Update() method.
 func (s *Tikv) Set(k []byte, v []byte) error {
+	//s.lruCache.Add(k, v)
+	s.lruCache.Remove(string(k))
 	return s.cli.Put(k, v)
 }
 
 // Get executes a function within the context of a managed read-only transaction.
 // Any error that is returned from the function is returned from the View() method.
 func (s *Tikv) Get(k []byte) (b []byte, err error) {
-	return s.cli.Get(k)
+	if v, ok := s.lruCache.Get(string(k)); ok {
+		return v.([]byte), nil
+	}
+
+	b, err = s.cli.Get(k)
+	if err == nil {
+		s.lruCache.Add(string(k), b)
+	}
+
+	return b, err
 }
 
 // Delete deletes a key. Exposing this so that user does not
 // have to specify the Entry directly.
 func (s *Tikv) Delete(k []byte) error {
+	s.lruCache.Remove(string(k))
 	return s.cli.Delete(k)
 }
 
@@ -71,22 +106,55 @@ func (s *Tikv) Has(k []byte) (bool, error) {
 	return true, nil
 }
 
-func (s *Tikv) BatchPut(data map[string][]byte) {
+func (s *Tikv) BatchPut(data map[string][]byte, reTokens ...string) {
 	var keys, values [][]byte
-	for k,v := range data {
+	for k, v := range data {
 		keys = append(keys, []byte(k))
 		values = append(values, v)
 	}
-	s.cli.BatchPut(keys, values)
+	err := s.cli.BatchPut(keys, values)
+	if err != nil {
+		return
+	}
+	for _, k := range reTokens  {
+		s.lruCache.Remove(k)
+	}
 }
 
 func (s *Tikv) BatchDelete(keys [][]byte) {
-	s.cli.BatchDelete(keys)
+	err := s.cli.BatchDelete(keys)
+	if err == nil {
+		for _, k := range keys {
+			s.lruCache.Remove(string(k))
+		}
+	}
 }
 
 //左匹配，开区间
 func (s *Tikv) PreLike(key []byte) (keys [][]byte, values [][]byte, err error) {
-	return s.cli.Scan(key, append(key, 255), ti.MaxRawKVScanLimit)
+	v, found := s.lruCache.Get(string(key))
+	if found {
+		if res, ok := v.(KvScanData); ok {
+			return res.Keys, res.Values, nil
+		}
+		return nil, nil, errors.New("type error")
+	}
+
+	startKey := key
+	for  {
+		k, v, e := s.cli.Scan(startKey, append(key, 255), ti.MaxRawKVScanLimit)
+		if e != nil {
+			return nil, nil, e
+		}
+		keys = append(keys, k...)
+		values = append(values, v...)
+		if len(keys) < ti.MaxRawKVScanLimit {
+			break
+		}
+		startKey = k[len(k) - 1]
+	}
+	s.lruCache.Add(string(key), KvScanData{Keys: keys, Values:values})
+	return
 }
 
 // Close releases all database resources. All transactions

@@ -109,6 +109,7 @@ type EngineOpts struct {
 	TiKvPdAddr string  `toml:"tikv_pd_addr"`
 	//存储 key 前缀
 	TiKvPrefix string  `toml:"tikv_prefix"`
+	TiKvLruSize	int  `toml:"tikv_lru_size"`
 }
 
 // Init init engine options

@@ -24,6 +24,7 @@ require (
 	github.com/golang/protobuf v1.2.0
 	github.com/golang/snappy v0.0.0-20180518054509-2e65f85255db
 	github.com/google/btree v1.0.0 // indirect
+	github.com/hashicorp/golang-lru v0.5.1
 	github.com/json-iterator/go v1.1.6
 	github.com/juju/errors v0.0.0-20190207033735-e65537c515d7 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
