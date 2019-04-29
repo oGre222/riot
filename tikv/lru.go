@@ -72,7 +72,6 @@ func (s *Lru) Remove(ctx context.Context, in *pb.Key) (*pb.Response, error) {
 }
 
 func (s *Lru) RemoveBatch(ctx context.Context, in *pb.Keys) (*pb.Response, error) {
-	log.Println("receive key:", in.Data)
 	for _, v := range in.Data  {
 		s.lruCache.Remove(v)
 	}
@@ -107,7 +106,6 @@ func (lc *LruClient) run() {
 }
 
 func (lc *LruClient) transNotice(n Notice) {
-	var r *pb.Response
 	var err error
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -117,17 +115,15 @@ func (lc *LruClient) transNotice(n Notice) {
 		if !ok {
 			log.Println("type error", n)
 		}
-		r, err = lc.client.Remove(ctx, &pb.Key{Data:d})
+		_, err = lc.client.Remove(ctx, &pb.Key{Data:d})
 	case BatchRemoveKey:
 		d, ok := n.Data.([]string)
 		if !ok {
 			log.Println("type error", n)
 		}
-		r, err = lc.client.RemoveBatch(ctx, &pb.Keys{Data:d})
+		_, err = lc.client.RemoveBatch(ctx, &pb.Keys{Data:d})
 	}
 	if err != nil {
 		log.Printf("could not greet: %v", err)
-	} else {
-		log.Println("Greeting:", r.Success)
 	}
 }
