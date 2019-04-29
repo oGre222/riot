@@ -103,7 +103,7 @@ type Engine struct {
 	storeIndexDocChans []chan storeIndexDocReq
 	storeInitChan      chan bool
 
-	tikvClient *ti.Tikv
+	TikvClient *ti.Tikv
 	tikvPrefix	string
 }
 
@@ -174,11 +174,6 @@ func (engine *Engine) InitTiKv() {
 	if !engine.initOptions.IDOnly {
 		engine.initOptions.IDOnly = true
 		log.Println("tikv only support IDOnly, has changed to IDOnly true")
-	}
-	var err error
-	engine.tikvClient, err = ti.OpenTikv(engine.initOptions.TiKvPdAddr, engine.initOptions.TiKvLruSize)
-	if err != nil {
-		log.Fatal(err)
 	}
 	if engine.initOptions.TiKvPrefix == "" {
 		log.Fatal("use tikv must set tikvPrefix")
@@ -340,11 +335,11 @@ func (engine *Engine) Init(options types.EngineOpts) {
 	// 初始化索引器和排序器
 	for shard := 0; shard < options.NumShards; shard++ {
 		engine.indexers = append(engine.indexers, core.Indexer{})
-		engine.indexers[shard].SetTikv(engine.tikvClient, engine.initOptions.TiKvPrefix)
+		engine.indexers[shard].SetTikv(engine.TikvClient, engine.initOptions.TiKvPrefix)
 		engine.indexers[shard].Init(*options.IndexerOpts)
 
 		engine.rankers = append(engine.rankers, core.Ranker{})
-		engine.rankers[shard].SetTikv(engine.tikvClient, engine.initOptions.TiKvPrefix)
+		engine.rankers[shard].SetTikv(engine.TikvClient, engine.initOptions.TiKvPrefix)
 		engine.rankers[shard].Init(options.IDOnly)
 	}
 

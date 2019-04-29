@@ -32,6 +32,7 @@ const DefaultLruSize = 100000
 type Tikv struct {
 	cli      *ti.RawKVClient
 	lruCache *lru.TwoQueueCache
+	noticeCh chan <- Notice
 }
 
 type KvData struct {
@@ -45,7 +46,7 @@ type KvScanData struct {
 }
 
 // OpenBolt open Bolt store
-func OpenTikv(addr string, lruSize ...int) (*Tikv, error) {
+func OpenTikv(addr string, listen string, peers string,  lruSize ...int) (*Tikv, error) {
 	cli, err := ti.NewRawKVClient(strings.Split(addr, ","), config.Security{})
 	if err != nil {
 		cli.Close()
@@ -60,7 +61,11 @@ func OpenTikv(addr string, lruSize ...int) (*Tikv, error) {
 		cli.Close()
 		return nil, err
 	}
-	return &Tikv{cli: cli, lruCache: l}, nil
+	return &Tikv{
+		cli: cli,
+		lruCache: l,
+		noticeCh: NewLru(l, listen, strings.Split(peers, ",")),
+	}, nil
 }
 
 // Set executes a function within the context of a read-write managed
@@ -70,7 +75,11 @@ func OpenTikv(addr string, lruSize ...int) (*Tikv, error) {
 // from the Update() method.
 func (s *Tikv) Set(k []byte, v []byte) error {
 	//s.lruCache.Add(k, v)
-	s.lruCache.Remove(string(k))
+	//s.lruCache.Remove(string(k))
+	if len(k) == 0 || len(v) == 0 {
+		return errors.New("empty")
+	}
+	s.noticeCh <- Notice{Type:RemoveKey, Data: string(k)}
 	return s.cli.Put(k, v)
 }
 
@@ -92,7 +101,8 @@ func (s *Tikv) Get(k []byte) (b []byte, err error) {
 // Delete deletes a key. Exposing this so that user does not
 // have to specify the Entry directly.
 func (s *Tikv) Delete(k []byte) error {
-	s.lruCache.Remove(string(k))
+	//s.lruCache.Remove(string(k))
+	s.noticeCh <- Notice{Type:RemoveKey, Data: string(k)}
 	return s.cli.Delete(k)
 }
 
@@ -107,27 +117,38 @@ func (s *Tikv) Has(k []byte) (bool, error) {
 }
 
 func (s *Tikv) BatchPut(data map[string][]byte, reTokens ...string) {
-	var keys, values [][]byte
-	for k, v := range data {
-		keys = append(keys, []byte(k))
-		values = append(values, v)
+	if len(data) > 0 {
+		var keys, values [][]byte
+		for k, v := range data {
+			keys = append(keys, []byte(k))
+			values = append(values, v)
+		}
+		err := s.cli.BatchPut(keys, values)
+		if err != nil {
+			return
+		}
 	}
-	err := s.cli.BatchPut(keys, values)
-	if err != nil {
-		return
+	if len(reTokens) > 0 {
+		s.noticeCh <- Notice{Type:BatchRemoveKey, Data: reTokens}
 	}
-	for _, k := range reTokens  {
+	/*for _, k := range reTokens  {
 		s.lruCache.Remove(k)
-	}
+	}*/
 }
 
 func (s *Tikv) BatchDelete(keys [][]byte) {
 	err := s.cli.BatchDelete(keys)
 	if err == nil {
+		var removeKeys []string
 		for _, k := range keys {
-			s.lruCache.Remove(string(k))
+			//s.lruCache.Remove(string(k))
+			removeKeys = append(removeKeys, string(k))
+		}
+		if len(removeKeys) > 0 {
+			s.noticeCh <- Notice{Type:BatchRemoveKey, Data: removeKeys}
 		}
 	}
+
 }
 
 //左匹配，开区间
