@@ -66,7 +66,6 @@ func (s *Lru) startListen(peers []string) {
 }
 
 func (s *Lru) Remove(ctx context.Context, in *pb.Key) (*pb.Response, error) {
-	log.Printf("receive key:%s", in.Data)
 	s.lruCache.Remove(in.Data)
 	return &pb.Response{Success:true}, nil
 }
