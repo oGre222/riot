@@ -161,4 +161,8 @@ func (options *EngineOpts) Init() {
 	if options.StoreShards == 0 {
 		options.StoreShards = defaultStoreShards
 	}
+
+	if options.UseTiKv && options.IndexerOpts.DocCacheSize == 0 {
+		options.IndexerOpts.DocCacheSize = 5000
+	}
 }

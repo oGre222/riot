@@ -116,7 +116,7 @@ func (indexer *Indexer) SetTikv (t *tikv.Tikv, prefix string) {
 	}
 	indexer.useTikv = true
 	indexer.tikv = t
-	indexer.initOptions.DocCacheSize = 1000
+	//indexer.initOptions.DocCacheSize = 1000
 	indexer.tikvDocIndexPre = TiKvDocIndex + prefix
 	indexer.tikvDocKeysPre = TiKvDocKeys + prefix
 }
