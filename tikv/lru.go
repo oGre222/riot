@@ -123,6 +123,6 @@ func (lc *LruClient) transNotice(n Notice) {
 		_, err = lc.client.RemoveBatch(ctx, &pb.Keys{Data:d})
 	}
 	if err != nil {
-		log.Printf("could not greet: %v", err)
+		log.Printf("could not lru: %v", err)
 	}
 }
