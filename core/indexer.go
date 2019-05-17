@@ -117,8 +117,8 @@ func (indexer *Indexer) SetTikv (t *tikv.Tikv, prefix string) {
 	indexer.useTikv = true
 	indexer.tikv = t
 	//indexer.initOptions.DocCacheSize = 1000
-	indexer.tikvDocIndexPre = TiKvDocIndex + prefix
-	indexer.tikvDocKeysPre = TiKvDocKeys + prefix
+	indexer.tikvDocIndexPre = prefix + TiKvDocIndex
+	indexer.tikvDocKeysPre = prefix + TiKvDocKeys
 }
 
 // getDocId 从 KeywordIndices 中得到第i个文档的 DocId
