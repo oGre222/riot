@@ -258,7 +258,7 @@ func (indexer *Indexer) AddTiKvDocs(docs *types.DocsIndex) {
 		reTokens = append(reTokens, indexer.tikvDocKeysPre + doc.DocId)
 		//indexer.setDocKeys(doc)
 		//indexer.setKeywordIndexKv(store)
-		
+
 		// if update doc, delete lru cached keys
 		docKeysByte, err := indexer.tikv.Get([]byte(indexer.tikvDocKeysPre + doc.DocId))
 		if err != nil {
@@ -266,7 +266,11 @@ func (indexer *Indexer) AddTiKvDocs(docs *types.DocsIndex) {
 			continue
 		}
 		var docKeys []string
-		utils.DecodeFromBytes(docKeysByte, &docKeys)
+		err = utils.DecodeFromBytes(docKeysByte, &docKeys)
+		if err != nil {
+			log.Printf("decode doc keys error: %s", err.Error())
+			continue
+		}
 		for _, k := range docKeys {
 			reTokens = append(reTokens, indexer.tikvDocIndexPre + k + ":")
 		}
